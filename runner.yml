@@ -1,0 +1,59 @@
+runs on: self-hosted, *
+
+# Define variables for easy updates and customization
+RUNNER_VERSION="v2.314.1"
+RUNNER_FILE="actions-runner-win-x64-$RUNNER_VERSION.zip"
+REPO_URL="https://github.com/USDOS/azure-quickstart-templates"
+TOKEN="BDJG22DE4WDJKHQGZ7HLOEDF6QZ7M"
+EXPECTED_HASH="2e1d73c3fe00ad37c359e4f48bd09aa88ef09a46fca16d6f1e94776ccf67fc27"
+
+# Create a directory for the actions runner and enter it
+mkdir actions-runner
+cd actions-runner
+
+# Download the latest runner package based on the OS
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    RUNNER_FILE="actions-runner-linux-x64-$RUNNER_VERSION.tar.gz"
+    wget -O $RUNNER_FILE https://github.com/actions/runner/releases/download/$RUNNER_VERSION/$RUNNER_FILE
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+    RUNNER_FILE="actions-runner-osx-x64-$RUNNER_VERSION.tar.gz"
+    curl -o $RUNNER_FILE https://github.com/actions/runner/releases/download/$RUNNER_VERSION/$RUNNER_FILE
+elif [[ "$OSTYPE" == "msys" ]]; then
+    RUNNER_FILE="actions-runner-win-x64-$RUNNER_VERSION.zip"
+    Invoke-WebRequest -Uri https://github.com/actions/runner/releases/download/$RUNNER_VERSION/$RUNNER_FILE -OutFile $RUNNER_FILE
+else
+    echo "Unsupported OS"
+    exit 1
+fi
+
+# Optional: Validate the hash (Windows PowerShell example)
+if [[ "$OSTYPE" == "msys" ]]; then
+    if ((Get-FileHash -Path $RUNNER_FILE -Algorithm SHA256).Hash.ToUpper() -ne $EXPECTED_HASH.ToUpper()) { 
+        throw 'Computed checksum did not match' 
+    }
+fi
+
+# Extract the installer
+if [[ "$OSTYPE" == "linux-gnu"* ]] || [[ "$OSTYPE" == "darwin"* ]]; then
+    tar xzf $RUNNER_FILE
+elif [[ "$OSTYPE" == "msys" ]]; then
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::ExtractToDirectory("$PWD/$RUNNER_FILE", "$PWD")
+fi
+
+# Configure the runner and start the configuration experience
+if [[ "$OSTYPE" == "msys" ]]; then
+    ./config.cmd --url $REPO_URL --token $TOKEN
+else
+    ./config.sh --url $REPO_URL --token $TOKEN
+fi
+
+# Run it!
+if [[ "$OSTYPE" == "msys" ]]; then
+    ./run.cmd
+else
+    ./run.sh
+fi
+
+# Note for using your self-hosted runner in GitHub Actions workflows:
+# Use 'runs-on: self-hosted' in your workflow file for each job to use this runner.
